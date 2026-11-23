@@ -33,7 +33,9 @@ PC와 스마트폰 브라우저에서 모두 쓸 수 있습니다. 설치나 회
 
 > 💾 데이터는 **내 브라우저에만** 저장됩니다(localStorage). 다른 기기로 옮기려면 **파일로 저장** 후 다른 기기에서 **파일 불러오기**를 하세요.
 >
-> 🔎 Google 뉴스는 브라우저 보안 정책(CORS) 때문에 공개 중계 서버(allorigins)를 거쳐 가져옵니다. 중계 서버가 바쁘면 실패할 수 있으니 잠시 후 다시 시도하거나, PC에서 `node server.js`(또는 `실행.bat`)로 실행해 http://localhost:8080 에서 쓰면 내 PC가 직접 가져옵니다.
+> 🔎 **Google 뉴스와 GitHub Pages**: 브라우저는 보안 정책(CORS) 때문에 Google 뉴스를 직접 읽을 수 없고, GitHub Pages에는 서버가 없습니다.
+> 그래서 추천 검색어(반도체, HBM, 삼성전자 반도체, SK하이닉스, TSMC, 엔비디아, 파운드리, 마이크론)의 뉴스를 미리 받아 `news-data.json`으로 사이트에 함께 올려 둡니다. 추천 검색어 버튼은 스마트폰에서도 항상 동작하며, PC에서 `뉴스갱신.bat`을 실행하면 최신 뉴스로 바뀝니다.
+> 그 밖의 검색어는 무료 공개 중계 서버로 시도하므로 가끔 실패할 수 있습니다. PC에서 `node server.js`(또는 `실행.bat`)로 실행해 http://localhost:8080 에서 쓰면 어떤 검색어든 내 PC가 직접 가져옵니다.
 
 ## 파일 구성
 
@@ -41,6 +43,9 @@ PC와 스마트폰 브라우저에서 모두 쓸 수 있습니다. 설치나 회
 index.html   웹 프로그램 (HTML + CSS + JavaScript, 파일 하나)
 server.js    PC용 로컬 서버 — Google 뉴스 RSS 중계 (Node.js, 설치할 패키지 없음)
 실행.bat     server.js 를 더블클릭으로 실행
+news-data.json         추천 검색어 뉴스 (사이트가 읽는 파일)
+scripts/fetch-news.js  추천 검색어 뉴스를 받아 news-data.json 생성
+뉴스갱신.bat           뉴스를 새로 받아 GitHub에 올리기 (더블클릭)
 cpp/         1주차 C++ 콘솔 버전 원본 소스
 ```
 

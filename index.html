@@ -169,6 +169,7 @@
         <input type="search" id="gKeyword" placeholder="검색어 (예: 반도체 HBM)" style="flex:1; min-width:200px">
         <button class="btn primary" type="submit">검색</button>
       </form>
+      <div class="row" id="gChips" style="margin-top:10px"></div>
       <div class="stat-sub" id="gInfo" style="margin:10px 0"></div>
       <div id="gList"></div>
     </div>
@@ -449,9 +450,10 @@ function renderStats() {
 }
 
 // ---------- 메뉴 8 : Google 뉴스에서 가져오기 ----------
-// 브라우저는 보안 정책(CORS) 때문에 news.google.com 을 직접 읽을 수 없다.
-// 1순위: 내 PC에서 server.js 로 실행했을 때의 로컬 중계(/rss)
-// 2순위 이하: GitHub Pages 처럼 서버가 없는 곳에서 쓰는 공개 중계 서버
+// 브라우저는 보안 정책(CORS) 때문에 news.google.com 을 직접 읽을 수 없다. 그래서 세 가지 길을 차례로 쓴다.
+//  ① news-data.json : GitHub Actions 가 3시간마다 주요 검색어의 뉴스를 받아 사이트에 넣어 둔 파일 (같은 사이트라 항상 읽힘)
+//  ② /rss           : 내 PC에서 server.js 로 실행했을 때의 로컬 중계
+//  ③ 공개 중계 서버  : 그 밖의 검색어용 (무료 서비스라 가끔 실패)
 const isLocalServer = ["localhost", "127.0.0.1"].includes(location.hostname);
 const PROXIES = [
   url => isLocalServer ? "/rss?q=" + encodeURIComponent(new URL(url).searchParams.get("q")) : null,
@@ -459,6 +461,20 @@ const PROXIES = [
   url => "https://corsproxy.io/?url=" + encodeURIComponent(url),
 ];
 let googleItems = [];
+let newsData = null;            // news-data.json 내용 { updated, keywords: { 검색어: [기사...] } }
+
+async function loadNewsData() {
+  try {
+    const res = await fetch("news-data.json", { cache: "no-store" });
+    if (res.ok) newsData = await res.json();
+  } catch (e) { /* 파일이 없으면(내 PC에서 index.html 만 연 경우) 건너뜀 */ }
+  const keywords = newsData ? Object.keys(newsData.keywords) : [];
+  $("gChips").innerHTML = keywords.map(k => `<button type="button" class="btn small" data-chip="${escapeHtml(k)}">${escapeHtml(k)}</button>`).join("");
+  if (newsData) {
+    const t = new Date(newsData.updated).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    $("gInfo").textContent = `추천 검색어를 누르거나 직접 검색하세요. (추천 검색어 뉴스 업데이트: ${t})`;
+  }
+}
 
 async function fetchRss(url) {
   for (const proxy of PROXIES) {
@@ -474,6 +490,15 @@ async function fetchRss(url) {
   }
   return null;
 }
+function parseRssXml(xml) {
+  const doc = new DOMParser().parseFromString(xml, "text/xml");
+  return [...doc.querySelectorAll("item")].map(item => ({
+    title: item.querySelector("title")?.textContent || "",
+    source: item.querySelector("source")?.textContent || "",
+    pubDate: item.querySelector("pubDate")?.textContent || "",
+    link: item.querySelector("link")?.textContent || "",
+  }));
+}
 
 // "Wed, 04 Nov 2026 03:44:15 GMT" → 한국 시간 기준 "2026-11-04"
 function toKoreanDate(pubDate) {
@@ -482,41 +507,43 @@ function toKoreanDate(pubDate) {
   return { date: new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10), time: t };
 }
 
-$("googleForm").addEventListener("submit", async e => {
-  e.preventDefault();
-  const keyword = $("gKeyword").value.trim();
+async function searchGoogle(keyword) {
   if (!keyword) { $("gInfo").textContent = "검색어를 입력해 주세요."; return; }
-
-  const rssUrl = "https://news.google.com/rss/search?q=" + encodeURIComponent(keyword) + "&hl=ko&gl=KR&ceid=KR:ko";
+  $("gKeyword").value = keyword;
   $("gInfo").textContent = "Google 뉴스에 접속하는 중...";
   $("gList").innerHTML = "";
 
-  const xml = await fetchRss(rssUrl);
-  if (!xml) {
-    $("gInfo").innerHTML = `뉴스를 가져오지 못했습니다. 중계 서버가 바쁠 수 있으니 잠시 후 다시 시도해 주세요.
+  let raw = null, fromCache = false;
+  const rssUrl = "https://news.google.com/rss/search?q=" + encodeURIComponent(keyword) + "&hl=ko&gl=KR&ceid=KR:ko";
+  if (isLocalServer || !newsData?.keywords[keyword]) {          // 실시간으로 먼저 시도
+    const xml = await fetchRss(rssUrl);
+    if (xml) raw = parseRssXml(xml);
+  }
+  if (!raw && newsData?.keywords[keyword]) { raw = newsData.keywords[keyword]; fromCache = true; }
+  if (!raw) {
+    $("gInfo").innerHTML = `'${escapeHtml(keyword)}' 뉴스를 실시간으로 가져오지 못했습니다(무료 중계 서버가 바쁨). 위의 추천 검색어는 항상 동작해요.
       <a href="https://news.google.com/search?q=${encodeURIComponent(keyword)}&hl=ko&gl=KR&ceid=KR:ko" target="_blank" rel="noopener">Google 뉴스에서 직접 보기 ↗</a>`;
     return;
   }
 
-  const doc = new DOMParser().parseFromString(xml, "text/xml");
   googleItems = [];
-  for (const item of doc.querySelectorAll("item")) {
-    let title = item.querySelector("title")?.textContent || "";
-    const source = item.querySelector("source")?.textContent || "";
-    const when = toKoreanDate(item.querySelector("pubDate")?.textContent || "");
-    const link = item.querySelector("link")?.textContent || "";
+  for (const r of raw) {
+    let title = r.title;
+    const source = r.source, when = toKoreanDate(r.pubDate);
     if (!title || !when) continue;
     const dash = title.lastIndexOf(" - ");                     // 제목 끝의 " - 언론사" 떼기
     if (source && dash > 0 && title.slice(dash + 3).replace(/\s/g, "") === source.replace(/\s/g, "")) title = title.slice(0, dash).trim();
-    googleItems.push({ title, source, link, ...when });
+    googleItems.push({ title, source, link: r.link, ...when });
   }
   googleItems.sort((a, b) => b.time - a.time);       // 최신 기사부터
   googleItems = googleItems.slice(0, MAX_RESULTS);
 
   if (googleItems.length === 0) { $("gInfo").textContent = `'${keyword}' 검색 결과가 없습니다. 다른 검색어를 써 보세요.`; return; }
-  $("gInfo").textContent = `'${keyword}' 최신 뉴스 ${googleItems.length}건 — [스크랩]을 눌러 스크랩북에 넣으세요.`;
+  $("gInfo").textContent = `'${keyword}' 최신 뉴스 ${googleItems.length}건${fromCache ? " (최근 업데이트분)" : ""} — [스크랩]을 눌러 스크랩북에 넣으세요.`;
   renderGoogleList();
-});
+}
+$("googleForm").addEventListener("submit", e => { e.preventDefault(); searchGoogle($("gKeyword").value.trim()); });
+$("gChips").addEventListener("click", e => { if (e.target.dataset.chip) searchGoogle(e.target.dataset.chip); });
 
 function renderGoogleList() {
   $("gList").innerHTML = googleItems.map((g, i) => {
@@ -625,6 +652,7 @@ let savedTheme = null;
 try { savedTheme = localStorage.getItem("theme"); } catch (e) {}
 applyTheme(savedTheme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
 loadFromStorage();
+loadNewsData();
 resetForm();
 renderAll();
 if (scrapbook.length) toast(`저장된 뉴스 ${scrapbook.length}건을 불러왔습니다.`);
