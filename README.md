@@ -6,7 +6,7 @@
 
 ## 🔗 바로 사용하기
 
-**https://jaehohwang990114-code.github.io/semicon-news-scrapbook/**
+**https://jaeho0114.github.io/semicon-news-scrapbook/**
 
 PC와 스마트폰 브라우저에서 모두 쓸 수 있습니다. 설치나 회원가입은 필요 없습니다.
 
