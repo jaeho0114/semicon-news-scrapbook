@@ -507,6 +507,23 @@ function toKoreanDate(pubDate) {
   return { date: new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10), time: t };
 }
 
+// 미리 받아 둔 뉴스(news-data.json)에서 찾기
+//  ① 추천 검색어와 같으면 그 뉴스 그대로
+//  ② 아니면 모든 추천 검색어의 뉴스 중 제목에 검색어가 들어간 것 (예: "하이닉스", "삼성", "인텔")
+function findCachedNews(keyword) {
+  if (!newsData) return null;
+  if (newsData.keywords[keyword]) return newsData.keywords[keyword];
+  const words = keyword.toLowerCase().split(/\s+/).filter(Boolean);
+  const seen = new Set(), found = [];
+  for (const list of Object.values(newsData.keywords)) {
+    for (const item of list) {
+      const title = item.title.toLowerCase();
+      if (!seen.has(item.title) && words.every(w => title.includes(w))) { seen.add(item.title); found.push(item); }
+    }
+  }
+  return found.length ? found : null;
+}
+
 async function searchGoogle(keyword) {
   if (!keyword) { $("gInfo").textContent = "검색어를 입력해 주세요."; return; }
   $("gKeyword").value = keyword;
@@ -515,11 +532,12 @@ async function searchGoogle(keyword) {
 
   let raw = null, fromCache = false;
   const rssUrl = "https://news.google.com/rss/search?q=" + encodeURIComponent(keyword) + "&hl=ko&gl=KR&ceid=KR:ko";
-  if (isLocalServer || !newsData?.keywords[keyword]) {          // 실시간으로 먼저 시도
+  const cached = findCachedNews(keyword);
+  if (isLocalServer || !cached) {                                // 내 PC 서버이거나 저장된 뉴스에 없으면 실시간으로 시도
     const xml = await fetchRss(rssUrl);
     if (xml) raw = parseRssXml(xml);
   }
-  if (!raw && newsData?.keywords[keyword]) { raw = newsData.keywords[keyword]; fromCache = true; }
+  if (!raw && cached) { raw = cached; fromCache = true; }
   if (!raw) {
     $("gInfo").innerHTML = `'${escapeHtml(keyword)}' 뉴스를 실시간으로 가져오지 못했습니다(무료 중계 서버가 바쁨). 위의 추천 검색어는 항상 동작해요.
       <a href="https://news.google.com/search?q=${encodeURIComponent(keyword)}&hl=ko&gl=KR&ceid=KR:ko" target="_blank" rel="noopener">Google 뉴스에서 직접 보기 ↗</a>`;
