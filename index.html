@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>반도체 뉴스 스크랩북</title>
+<style>
+  /* ===== 색상 테마 (라이트 / 다크) ===== */
+  :root {
+    --bg: #f4f6fa; --panel: #ffffff; --text: #1d2433; --sub: #667085; --line: #e3e7ef;
+    --accent: #2f6fed; --accent-soft: #e8f0ff; --danger: #d92d20; --star: #f5a524; --bar: #2f6fed;
+    --shadow: 0 1px 3px rgba(16,24,40,.08);
+  }
+  :root[data-theme="dark"] {
+    --bg: #11151c; --panel: #1a2029; --text: #e6e9ef; --sub: #98a2b3; --line: #2a3240;
+    --accent: #6b9bff; --accent-soft: #1f2b44; --danger: #ff6b5e; --star: #ffc24b; --bar: #6b9bff;
+    --shadow: none;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; font-size: 15px; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+
+  header { background: var(--panel); border-bottom: 1px solid var(--line); }
+  .header-inner { max-width: 1180px; margin: 0 auto; padding: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; }
+  header .count { color: var(--sub); font-size: 14px; }
+  header .spacer { flex: 1; }
+
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+  .card h2 { font-size: 16px; margin: 0 0 12px; }
+
+  label { display: block; font-size: 13px; color: var(--sub); margin: 10px 0 4px; }
+  input[type=text], input[type=date], input[type=search], select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .error { color: var(--danger); font-size: 12px; min-height: 16px; margin-top: 2px; }
+
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  .btn:hover { background: var(--accent-soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.danger { color: var(--danger); }
+  .btn.small { padding: 4px 10px; font-size: 13px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  /* 별점 입력 */
+  .stars { display: inline-flex; gap: 2px; }
+  .stars button { border: none; background: none; font-size: 24px; cursor: pointer; color: var(--line); padding: 0 2px; line-height: 1; }
+  .stars button.on { color: var(--star); }
+
+  /* 탭 */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: -4px 0 14px; }
+  .tabs button { border: none; background: none; padding: 10px 14px; cursor: pointer; color: var(--sub); border-bottom: 2px solid transparent; }
+  .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  .toolbar { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  @media (max-width: 600px) { .toolbar { grid-template-columns: 1fr 1fr; } }
+
+  .news { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .news .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--sub); }
+  .badge { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+  .news .title { font-weight: 600; margin: 6px 0 4px; word-break: break-all; }
+  .news .memo { color: var(--sub); font-size: 14px; word-break: break-all; }
+  .news .actions { margin-left: auto; display: flex; gap: 6px; }
+  .star-text { color: var(--star); letter-spacing: 1px; }
+  mark { background: #ffe58a; color: #000; border-radius: 3px; padding: 0 1px; }
+  .empty { text-align: center; color: var(--sub); padding: 32px 8px; }
+
+  /* 통계 막대 */
+  .stat-row { display: grid; grid-template-columns: 90px 1fr 120px; gap: 10px; align-items: center; margin: 8px 0; font-size: 14px; }
+  .bar-track { background: var(--bg); border-radius: 6px; height: 22px; overflow: hidden; }
+  .bar-fill { background: var(--bar); height: 100%; border-radius: 6px; color: #fff; font-size: 12px; display: flex; align-items: center; padding-left: 8px; min-width: 24px; transition: width .4s; }
+  .stat-sub { color: var(--sub); font-size: 13px; }
+  .highlight { margin-top: 16px; padding: 12px; background: var(--accent-soft); border-radius: 8px; }
+
+  .g-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+  .g-item .scrap-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); display: none; }
+  .g-item.open .scrap-form { display: block; }
+
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: #1d2433; color: #fff;
+           padding: 10px 18px; border-radius: 8px; opacity: 0; transition: .25s; pointer-events: none; z-index: 10; }
+  #toast.show { opacity: 1; transform: translateX(-50%); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <h1>📰 반도체 뉴스 스크랩북</h1>
+    <span class="count" id="totalCount"></span>
+    <span class="spacer"></span>
+    <button class="btn small" id="exportBtn" title="news_scrap.txt 형식으로 저장">💾 파일로 저장</button>
+    <button class="btn small" id="importBtn" title="C++ 버전의 news_scrap.txt 불러오기">📂 파일 불러오기</button>
+    <input type="file" id="importFile" accept=".txt" class="hidden">
+    <button class="btn small" id="themeBtn">🌙 다크 모드</button>
+  </div>
+</header>
+
+<main>
+  <!-- ===== 왼쪽: 뉴스 추가 / 수정 (메뉴 1) ===== -->
+  <section class="card">
+    <h2 id="formTitle">뉴스 추가</h2>
+    <form id="newsForm" novalidate>
+      <label for="fDate">날짜</label>
+      <input type="date" id="fDate">
+      <div class="error" id="eDate"></div>
+
+      <label for="fTitle">기사 제목</label>
+      <input type="text" id="fTitle" placeholder="예: SK하이닉스, HBM4 양산 돌입">
+      <div class="error" id="eTitle"></div>
+
+      <label for="fCompany">관련 회사</label>
+      <select id="fCompany"></select>
+      <div class="stat-sub" id="guessHint"></div>
+
+      <label for="fMemo">한 줄 메모</label>
+      <input type="text" id="fMemo" placeholder="예: 엔비디아 납품 물량 확대">
+      <div class="error" id="eMemo"></div>
+
+      <label>중요도</label>
+      <div class="stars" id="fStars"></div>
+
+      <div class="row" style="margin-top:16px">
+        <button type="submit" class="btn primary" id="submitBtn">추가하기</button>
+        <button type="button" class="btn hidden" id="cancelEditBtn">수정 취소</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ===== 오른쪽: 목록 / 통계 / Google 뉴스 ===== -->
+  <section class="card">
+    <div class="tabs">
+      <button data-tab="list" class="active">📋 목록 · 검색</button>
+      <button data-tab="stats">📊 회사별 통계</button>
+      <button data-tab="google">🔎 Google 뉴스</button>
+    </div>
+
+    <!-- 메뉴 2~5, 7 : 목록 · 회사별 검색 · 키워드 검색 · 중요도순 · 삭제 -->
+    <div id="tab-list">
+      <div class="toolbar">
+        <input type="search" id="qKeyword" placeholder="키워드 검색 (제목·메모) 예: HBM">
+        <select id="qCompany"><option value="">전체 회사</option></select>
+        <select id="qMin">
+          <option value="1">중요도 전체</option>
+          <option value="2">★2 이상</option><option value="3">★3 이상</option>
+          <option value="4">★4 이상</option><option value="5">★5만</option>
+        </select>
+        <select id="qSort">
+          <option value="date">최신순</option>
+          <option value="importance">중요도순</option>
+        </select>
+      </div>
+      <div class="stat-sub" id="resultInfo" style="margin-bottom:8px"></div>
+      <div id="newsList"></div>
+    </div>
+
+    <!-- 메뉴 6 : 회사별 통계 -->
+    <div id="tab-stats" class="hidden"></div>
+
+    <!-- 메뉴 8 : Google 뉴스에서 가져오기 -->
+    <div id="tab-google" class="hidden">
+      <form class="row" id="googleForm">
+        <input type="search" id="gKeyword" placeholder="검색어 (예: 반도체 HBM)" style="flex:1; min-width:200px">
+        <button class="btn primary" type="submit">검색</button>
+      </form>
+      <div class="stat-sub" id="gInfo" style="margin:10px 0"></div>
+      <div id="gList"></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+// =============================================================
+//  반도체 뉴스 스크랩북 (웹 버전)
+//  1주차 C++ 프로그램(News.h, NewsInput.cpp, NewsFeature.cpp, NewsGoogle.cpp, NewsFile.cpp)의
+//  기능을 브라우저에서 동작하도록 JavaScript 로 옮긴 것.
+// =============================================================
+
+// ---------- News.h : 상수 ----------
+const STORAGE_KEY = "news_scrap";                 // C++ 의 DATA_FILE 대신 브라우저 저장소(localStorage) 사용
+const COMPANIES = ["삼성전자", "SK하이닉스", "TSMC", "인텔", "엔비디아", "마이크론", "기타"];
+const MAX_RESULTS = 10;
+
+// News 한 건: { id, date, title, company, memo, importance }
+let scrapbook = [];
+let editingId = null;          // 수정 중인 뉴스 id (없으면 추가 모드)
+let formImportance = 3;
+
+const $ = (id) => document.getElementById(id);
+
+// ---------- NewsFile.cpp : 저장 · 불러오기 ----------
+function saveToStorage() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(scrapbook)); } catch (e) { /* 저장소를 쓸 수 없는 환경 */ }
+}
+function loadFromStorage() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    if (Array.isArray(data)) scrapbook = data.filter(n => n && n.importance >= 1 && n.importance <= 5);
+  } catch (e) { scrapbook = []; }
+}
+
+// C++ 버전과 같은 형식의 텍스트: 날짜|제목|회사|메모|중요도
+function toFileText(list) {
+  return list.map(n => [n.date, n.title, n.company, n.memo, n.importance].join("|")).join("\n") + "\n";
+}
+function parseFileText(text) {
+  const result = [];
+  for (const line of text.split(/\r?\n/)) {
+    const parts = line.split("|");
+    if (parts.length !== 5) continue;            // 망가진 줄은 건너뛴다
+    const importance = parseInt(parts[4], 10);
+    if (!(importance >= 1 && importance <= 5)) continue;
+    result.push(makeNews(parts[0], parts[1], parts[2], parts[3], importance));
+  }
+  return result;
+}
+
+// ---------- NewsInput.cpp : 입력 검사 ----------
+function isValidDate(date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const year = +date.slice(0, 4), month = +date.slice(5, 7), day = +date.slice(8, 10);
+  if (month < 1 || month > 12) return false;
+  const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const leapYear = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  if (leapYear) daysInMonth[1] = 29;
+  return day >= 1 && day <= daysInMonth[month - 1];
+}
+const removeBar = (s) => s.replaceAll("|", "/");   // 저장 구분자 '|' → '/'
+
+function makeNews(date, title, company, memo, importance) {
+  return { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+           date, title: removeBar(title.trim()), company: COMPANIES.includes(company) ? company : "기타",
+           memo: removeBar(memo.trim()), importance };
+}
+
+// ---------- NewsFeature.cpp : 출력 도우미 ----------
+const makeStars = (count) => "★".repeat(count) + "☆".repeat(5 - count);
+const containsKeyword = (text, keyword) => text.toLowerCase().includes(keyword.toLowerCase());
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+// 검색어를 노란색으로 표시 (개선 기능)
+function highlight(text, keyword) {
+  const safe = escapeHtml(text);
+  if (!keyword) return safe;
+  const pattern = new RegExp(escapeHtml(keyword).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  return safe.replace(pattern, m => `<mark>${m}</mark>`);
+}
+
+// ---------- NewsGoogle.cpp : 회사 자동 판별 ----------
+function guessCompany(title) {
+  const aliases = [["삼성", "삼성전자"], ["하이닉스", "SK하이닉스"], ["SK", "SK하이닉스"], ["TSMC", "TSMC"],
+                   ["인텔", "인텔"], ["Intel", "인텔"], ["엔비디아", "엔비디아"], ["NVIDIA", "엔비디아"], ["마이크론", "마이크론"]];
+  let bestPosition = Infinity, bestCompany = "기타";
+  for (const [word, company] of aliases) {
+    const found = title.indexOf(word);
+    if (found !== -1 && found < bestPosition) { bestPosition = found; bestCompany = company; }
+  }
+  return bestCompany;
+}
+
+// ---------- 화면: 공통 ----------
+function toast(message) {
+  const t = $("toast");
+  t.textContent = message;
+  t.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function todayKST() {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  return d.toISOString().slice(0, 10);
+}
+function fillCompanySelect(select, withAll) {
+  select.innerHTML = (withAll ? '<option value="">전체 회사</option>' : "") +
+    COMPANIES.map(c => `<option value="${c}">${c}</option>`).join("");
+}
+function renderAll() {
+  $("totalCount").textContent = `저장된 뉴스 ${scrapbook.length}건`;
+  renderList();
+  renderStats();
+}
+
+// ---------- 메뉴 1 : 뉴스 추가 (+ 수정) ----------
+function renderStarInput() {
+  $("fStars").innerHTML = [1, 2, 3, 4, 5].map(i =>
+    `<button type="button" data-v="${i}" class="${i <= formImportance ? "on" : ""}" aria-label="중요도 ${i}">★</button>`).join("");
+}
+$("fStars").addEventListener("click", e => {
+  const v = e.target.dataset.v;
+  if (v) { formImportance = +v; renderStarInput(); }
+});
+$("fTitle").addEventListener("input", () => {          // 제목을 쓰면 회사를 자동 추천 (개선 기능)
+  const title = $("fTitle").value;
+  const guess = guessCompany(title);
+  if (title && guess !== "기타" && !editingId) {
+    $("fCompany").value = guess;
+    $("guessHint").textContent = `제목에서 '${guess}'을(를) 찾아 자동 선택했어요.`;
+  } else {
+    $("guessHint").textContent = "";
+  }
+});
+
+function resetForm() {
+  editingId = null;
+  $("newsForm").reset();
+  $("fDate").value = todayKST();
+  formImportance = 3;
+  renderStarInput();
+  $("formTitle").textContent = "뉴스 추가";
+  $("submitBtn").textContent = "추가하기";
+  $("cancelEditBtn").classList.add("hidden");
+  $("guessHint").textContent = "";
+  ["eDate", "eTitle", "eMemo"].forEach(id => $(id).textContent = "");
+}
+$("cancelEditBtn").addEventListener("click", resetForm);
+
+$("newsForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const date = $("fDate").value, title = $("fTitle").value.trim(), memo = $("fMemo").value.trim();
+  let ok = true;
+  $("eDate").textContent  = isValidDate(date) ? "" : (ok = false, "날짜는 YYYY-MM-DD 형식의 올바른 날짜로 입력해 주세요.");
+  $("eTitle").textContent = title ? "" : (ok = false, "빈 값은 입력할 수 없습니다.");
+  $("eMemo").textContent  = memo  ? "" : (ok = false, "빈 값은 입력할 수 없습니다.");
+  if (!ok) return;
+
+  const news = makeNews(date, title, $("fCompany").value, memo, formImportance);
+  if (editingId) {
+    const index = scrapbook.findIndex(n => n.id === editingId);
+    news.id = editingId;
+    scrapbook[index] = news;
+    toast("수정했습니다.");
+  } else {
+    scrapbook.push(news);
+    toast(`저장했습니다. (총 ${scrapbook.length}건)`);
+  }
+  saveToStorage();
+  resetForm();
+  renderAll();
+});
+
+function startEdit(id) {
+  const n = scrapbook.find(x => x.id === id);
+  if (!n) return;
+  editingId = id;
+  $("fDate").value = n.date; $("fTitle").value = n.title; $("fCompany").value = n.company; $("fMemo").value = n.memo;
+  formImportance = n.importance; renderStarInput();
+  $("formTitle").textContent = "뉴스 수정";
+  $("submitBtn").textContent = "수정 완료";
+  $("cancelEditBtn").classList.remove("hidden");
+  $("guessHint").textContent = "";
+  $("fTitle").focus();
+}
+
+// ---------- 메뉴 2~5 : 목록 · 회사별 · 키워드 · 중요도순 ----------
+function renderList() {
+  const keyword = $("qKeyword").value.trim();
+  const company = $("qCompany").value;
+  const minImportance = +$("qMin").value;
+  const sortBy = $("qSort").value;
+
+  let result = scrapbook.filter(n =>
+    (!company || n.company === company) &&
+    n.importance >= minImportance &&
+    (!keyword || containsKeyword(n.title, keyword) || containsKeyword(n.memo, keyword)));
+
+  result.sort((a, b) => sortBy === "importance"
+    ? (b.importance - a.importance) || b.date.localeCompare(a.date)   // 중요도 높은 순, 같으면 최신
+    : b.date.localeCompare(a.date));                                  // YYYY-MM-DD 는 문자열 비교로 날짜 순서가 맞다
+
+  const conditions = [];
+  if (company) conditions.push(`'${company}'`);
+  if (keyword) conditions.push(`'${keyword}'`);
+  if (minImportance > 1) conditions.push(`중요도 ${minImportance} 이상`);
+  $("resultInfo").textContent = (conditions.length ? conditions.join(" · ") + " 검색 결과 " : "전체 목록 ") + `${result.length}건`;
+
+  if (scrapbook.length === 0) {
+    $("newsList").innerHTML = `<div class="empty">아직 스크랩한 뉴스가 없습니다. 왼쪽에서 추가해 보세요.<br><br>
+      <button class="btn small" id="sampleBtn">예시 뉴스 5건 넣어 보기</button></div>`;
+    $("sampleBtn").addEventListener("click", addSamples);
+    return;
+  }
+  if (result.length === 0) {
+    $("newsList").innerHTML = `<div class="empty">조건에 맞는 뉴스가 없습니다. 다른 검색어를 써 보세요.</div>`;
+    return;
+  }
+  $("newsList").innerHTML = result.map((n, i) => `
+    <div class="news">
+      <div class="meta">
+        <b>[${i + 1}]</b> <span>${n.date}</span> <span class="badge">${escapeHtml(n.company)}</span>
+        <span class="star-text">${makeStars(n.importance)}</span>
+        <span class="actions">
+          <button class="btn small" data-edit="${n.id}">수정</button>
+          <button class="btn small danger" data-del="${n.id}">삭제</button>
+        </span>
+      </div>
+      <div class="title">${highlight(n.title, keyword)}</div>
+      <div class="memo">📝 ${highlight(n.memo, keyword)}</div>
+    </div>`).join("");
+}
+["qKeyword", "qCompany", "qMin", "qSort"].forEach(id => $(id).addEventListener("input", renderList));
+
+// ---------- 메뉴 7 : 삭제 ----------
+$("newsList").addEventListener("click", e => {
+  const editId = e.target.dataset.edit, delId = e.target.dataset.del;
+  if (editId) startEdit(editId);
+  if (delId) {
+    const n = scrapbook.find(x => x.id === delId);
+    if (n && confirm(`'${n.title}'\n\n정말 삭제할까요?`)) {
+      scrapbook = scrapbook.filter(x => x.id !== delId);
+      if (editingId === delId) resetForm();
+      saveToStorage();
+      renderAll();
+      toast(`삭제했습니다. (남은 뉴스 ${scrapbook.length}건)`);
+    }
+  }
+});
+
+// ---------- 메뉴 6 : 회사별 통계 ----------
+function renderStats() {
+  const box = $("tab-stats");
+  if (scrapbook.length === 0) { box.innerHTML = `<div class="empty">아직 스크랩한 뉴스가 없습니다.</div>`; return; }
+
+  const counts = COMPANIES.map(() => 0), importanceSum = COMPANIES.map(() => 0);
+  for (const n of scrapbook) {
+    const i = COMPANIES.indexOf(n.company);
+    if (i >= 0) { counts[i]++; importanceSum[i] += n.importance; }
+  }
+  const max = Math.max(...counts);
+  const maxIndex = counts.indexOf(max);
+
+  box.innerHTML = `<div class="stat-sub" style="margin-bottom:8px">총 ${scrapbook.length}건</div>` +
+    COMPANIES.map((c, i) => counts[i] === 0 ? "" : `
+      <div class="stat-row">
+        <span>${c}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${(counts[i] / max) * 100}%">${counts[i]}건</div></div>
+        <span class="stat-sub">평균 중요도 ${(importanceSum[i] / counts[i]).toFixed(1)}</span>
+      </div>`).join("") +
+    `<div class="highlight">▶ 가장 많이 스크랩한 회사: <b>${COMPANIES[maxIndex]}</b> (${max}건)</div>`;
+}
+
+// ---------- 메뉴 8 : Google 뉴스에서 가져오기 ----------
+// 브라우저는 보안 정책(CORS) 때문에 news.google.com 을 직접 읽을 수 없다.
+// 1순위: 내 PC에서 server.js 로 실행했을 때의 로컬 중계(/rss)
+// 2순위 이하: GitHub Pages 처럼 서버가 없는 곳에서 쓰는 공개 중계 서버
+const isLocalServer = ["localhost", "127.0.0.1"].includes(location.hostname);
+const PROXIES = [
+  url => isLocalServer ? "/rss?q=" + encodeURIComponent(new URL(url).searchParams.get("q")) : null,
+  url => "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
+  url => "https://corsproxy.io/?url=" + encodeURIComponent(url),
+];
+let googleItems = [];
+
+async function fetchRss(url) {
+  for (const proxy of PROXIES) {
+    const target = proxy(url);
+    if (!target) continue;
+    try {
+      const res = await fetch(target, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const text = await res.text();
+        if (text.includes("<item>")) return text;
+      }
+    } catch (e) { /* 다음 중계 서버 시도 */ }
+  }
+  return null;
+}
+
+// "Wed, 04 Nov 2026 03:44:15 GMT" → 한국 시간 기준 "2026-11-04"
+function toKoreanDate(pubDate) {
+  const t = Date.parse(pubDate);
+  if (isNaN(t)) return null;
+  return { date: new Date(t + 9 * 3600 * 1000).toISOString().slice(0, 10), time: t };
+}
+
+$("googleForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const keyword = $("gKeyword").value.trim();
+  if (!keyword) { $("gInfo").textContent = "검색어를 입력해 주세요."; return; }
+
+  const rssUrl = "https://news.google.com/rss/search?q=" + encodeURIComponent(keyword) + "&hl=ko&gl=KR&ceid=KR:ko";
+  $("gInfo").textContent = "Google 뉴스에 접속하는 중...";
+  $("gList").innerHTML = "";
+
+  const xml = await fetchRss(rssUrl);
+  if (!xml) {
+    $("gInfo").innerHTML = `뉴스를 가져오지 못했습니다. 중계 서버가 바쁠 수 있으니 잠시 후 다시 시도해 주세요.
+      <a href="https://news.google.com/search?q=${encodeURIComponent(keyword)}&hl=ko&gl=KR&ceid=KR:ko" target="_blank" rel="noopener">Google 뉴스에서 직접 보기 ↗</a>`;
+    return;
+  }
+
+  const doc = new DOMParser().parseFromString(xml, "text/xml");
+  googleItems = [];
+  for (const item of doc.querySelectorAll("item")) {
+    let title = item.querySelector("title")?.textContent || "";
+    const source = item.querySelector("source")?.textContent || "";
+    const when = toKoreanDate(item.querySelector("pubDate")?.textContent || "");
+    const link = item.querySelector("link")?.textContent || "";
+    if (!title || !when) continue;
+    const dash = title.lastIndexOf(" - ");                     // 제목 끝의 " - 언론사" 떼기
+    if (source && dash > 0 && title.slice(dash + 3).replace(/\s/g, "") === source.replace(/\s/g, "")) title = title.slice(0, dash).trim();
+    googleItems.push({ title, source, link, ...when });
+  }
+  googleItems.sort((a, b) => b.time - a.time);       // 최신 기사부터
+  googleItems = googleItems.slice(0, MAX_RESULTS);
+
+  if (googleItems.length === 0) { $("gInfo").textContent = `'${keyword}' 검색 결과가 없습니다. 다른 검색어를 써 보세요.`; return; }
+  $("gInfo").textContent = `'${keyword}' 최신 뉴스 ${googleItems.length}건 — [스크랩]을 눌러 스크랩북에 넣으세요.`;
+  renderGoogleList();
+});
+
+function renderGoogleList() {
+  $("gList").innerHTML = googleItems.map((g, i) => {
+    const saved = scrapbook.some(n => n.title === removeBar(g.title));
+    const guess = guessCompany(g.title);
+    return `
+    <div class="g-item" id="g${i}">
+      <div class="meta row" style="font-size:13px; color:var(--sub)">
+        <b>[${i + 1}]</b> ${g.date} · ${escapeHtml(g.source)}
+        <span class="spacer" style="flex:1"></span>
+        ${g.link ? `<a href="${escapeHtml(g.link)}" target="_blank" rel="noopener" class="btn small">원문 ↗</a>` : ""}
+        <button class="btn small ${saved ? "" : "primary"}" data-open="${i}" ${saved ? "disabled" : ""}>${saved ? "스크랩됨" : "스크랩"}</button>
+      </div>
+      <div class="title" style="font-weight:600; margin-top:6px">${escapeHtml(g.title)}</div>
+      <div class="scrap-form">
+        <div class="row">
+          <select data-company="${i}" style="width:auto">${COMPANIES.map(c => `<option ${c === guess ? "selected" : ""}>${c}</option>`).join("")}</select>
+          <select data-imp="${i}" style="width:auto">${[5, 4, 3, 2, 1].map(v => `<option value="${v}" ${v === 3 ? "selected" : ""}>${makeStars(v)}</option>`).join("")}</select>
+        </div>
+        <input type="text" data-memo="${i}" placeholder="한 줄 메모" style="margin-top:8px">
+        <div class="row" style="margin-top:8px"><button class="btn primary small" data-save="${i}">스크랩북에 저장</button></div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+$("gList").addEventListener("click", e => {
+  const open = e.target.dataset.open, save = e.target.dataset.save;
+  if (open !== undefined) $("g" + open).classList.toggle("open");
+  if (save !== undefined) {
+    const g = googleItems[save];
+    const memo = document.querySelector(`[data-memo="${save}"]`).value.trim();
+    if (!memo) { toast("한 줄 메모를 입력해 주세요."); return; }
+    if (scrapbook.some(n => n.title === removeBar(g.title))) { toast("이미 스크랩한 기사입니다."); return; }
+    const company = document.querySelector(`[data-company="${save}"]`).value;
+    const importance = +document.querySelector(`[data-imp="${save}"]`).value;
+    scrapbook.push(makeNews(g.date, g.title, company, memo, importance));
+    saveToStorage();
+    renderAll();
+    renderGoogleList();
+    toast(`스크랩했습니다. (총 ${scrapbook.length}건)`);
+  }
+});
+
+// ---------- 탭 전환 ----------
+document.querySelectorAll(".tabs button").forEach(btn => btn.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("active", b === btn));
+  ["list", "stats", "google"].forEach(t => $("tab-" + t).classList.toggle("hidden", t !== btn.dataset.tab));
+}));
+
+// ---------- 파일 저장 / 불러오기 (C++ 버전과 호환) ----------
+$("exportBtn").addEventListener("click", () => {
+  const blob = new Blob([toFileText(scrapbook)], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "news_scrap.txt";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`뉴스 ${scrapbook.length}건을 news_scrap.txt 로 저장했습니다.`);
+});
+$("importBtn").addEventListener("click", () => $("importFile").click());
+$("importFile").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const bytes = await file.arrayBuffer();
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }   // 웹 버전 파일
+  catch { text = new TextDecoder("euc-kr").decode(bytes); }                // C++ 콘솔 버전 파일(CP949)
+  const loaded = parseFileText(text);
+  const fresh = loaded.filter(n => !scrapbook.some(s => s.title === n.title && s.date === n.date));
+  scrapbook.push(...fresh);
+  saveToStorage();
+  renderAll();
+  toast(`${loaded.length}건 중 새 뉴스 ${fresh.length}건을 불러왔습니다.`);
+  e.target.value = "";
+});
+
+// ---------- 다크 모드 ----------
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $("themeBtn").textContent = theme === "dark" ? "☀️ 라이트 모드" : "🌙 다크 모드";
+  try { localStorage.setItem("theme", theme); } catch (e) {}
+}
+$("themeBtn").addEventListener("click", () =>
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+
+// ---------- 예시 데이터 ----------
+function addSamples() {
+  const samples = [
+    ["2026-11-03", "SK하이닉스, HBM4 12단 양산 돌입", "SK하이닉스", "엔비디아 차세대 GPU 탑재 예정", 5],
+    ["2026-11-02", "TSMC 2나노 파운드리 수율 개선 소식", "TSMC", "애플·AMD 수주 경쟁 심화", 4],
+    ["2026-10-30", "삼성전자 파운드리, 테슬라 AI칩 추가 수주", "삼성전자", "파운드리 적자 축소 기대", 4],
+    ["2026-10-28", "엔비디아 시가총액 사상 최고치 경신", "엔비디아", "AI 서버 수요 지속", 3],
+    ["2026-10-25", "마이크론 HBM 점유율 확대 계획 발표", "마이크론", "HBM 3강 경쟁 구도", 3],
+  ];
+  samples.forEach(s => scrapbook.push(makeNews(...s)));
+  saveToStorage();
+  renderAll();
+  toast("예시 뉴스 5건을 넣었습니다.");
+}
+
+// ---------- 시작 (main.cpp) ----------
+fillCompanySelect($("fCompany"), false);
+fillCompanySelect($("qCompany"), true);
+let savedTheme = null;
+try { savedTheme = localStorage.getItem("theme"); } catch (e) {}
+applyTheme(savedTheme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+loadFromStorage();
+resetForm();
+renderAll();
+if (scrapbook.length) toast(`저장된 뉴스 ${scrapbook.length}건을 불러왔습니다.`);
+</script>
+</body>
+</html>
